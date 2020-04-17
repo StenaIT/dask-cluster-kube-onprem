@@ -1,0 +1,93 @@
+notes dask-cluster experiments
+kube controller? on (requires VPN)
+ping 172.30.102.126
+PING 172.30.102.126 (172.30.102.126) 56(84) bytes of data.
+64 bytes from 172.30.102.126: icmp_seq=1 ttl=62 time=3.56 ms
+64 bytes from 172.30.102.126: icmp_seq=2 ttl=62 time=9.98 ms
+64 bytes from 172.30.102.126: icmp_seq=3 ttl=62 time=3.76 ms
+
+useful commands:
+    export KUBECONFIG=./config
+kubectl apply -f worker.yaml
+kubectl get deployment dask-worker -o yaml > worker.yaml
+kubectl edit deployment dask-worker
+kubectl get deployment
+kubectl get pod
+
+med cert (på localclustret)
+>>> import dask
+>>> from dask.distributed import Client, progress
+>>> from distributed.security import Security
+>>>
+>>> sec = Security(tls_ca_file='./dask-ca.pem',
+...                tls_client_cert='./dask-cert.pem',
+...                tls_client_key='./dask-key.pem',
+...                require_encryption=True)
+>>>
+>>> c = Client("tls://sr0688got.stenaab.com:8786", security=sec)
+>>> c
+<Client: 'tls://10.244.0.10:8786' processes=3 threads=36, memory=75.82 GB>
+
+ from dask.distributed import Client
+In [2]: client = Client('tcp://172.30.81.234:8786')
+/home/jonathan/miniconda3/lib/python3.7/site-packages/distributed/client.py:1074: VersionMismatchWarning: Mismatched versions found
+
+jupyter password: dask
+http://sr0688got.stenaab.com:8787/
+
+https://stenait.visualstudio.com/_git/GIT-DaskPlatform?path=%2Fk8s-config%2Fdask-gateway&version=GBmaster
+https://github.com/dask/dask-gateway/blob/master/resources/helm/dask-gateway/values.yaml
+
+gateway:
+  # A 32 byte hex-encoded secret token for authenticating with the proxies.
+  # Sets `c.WebProxy.auth_token` and `c.SchedulerProxy.auth_token`.
+  proxyToken: 9cf68b65eb949622c9624aa540572e42fc377e0e9910070a2c6c7fd5f246defe
+
+
+RELEASE=dask-gateway
+NAMESPACE=dask-gateway
+VERSION=0.7.1
+​
+helm upgrade --install \
+    --namespace $NAMESPACE \
+    --version $VERSION \
+    --values config.yaml \
+    $RELEASE \
+    dask-gateway/dask-gateway
+
+
+gentlemen, jag försöker anropa gateway genom jupyternotebooken och skapar först ett gateway object, som sedan kallas med
+from dask_gateway import Gateway
+gateway = Gateway('http://172.30.102.126:81', proxy_address="tls://172.30.102.126:8786")
+som kallas med gateway.list_clusters() och då svarar: []
+Enligt manualen skall detta betyda att kollingen funkar, och åtminstone om jag ändrar i första param, Gateway('http://172,,,, så får den inget svar, så jag antar att det funkar. Ändrar jag i proxy address så reagerar den inte så den litar jag inte på att den är kontrollerad. Kanske används den kanske inte.
+Enligt manual skall man sedan göra cluster = gateway.new_cluster()
+Denna timear ut för mig varje gång, med uppmaning att läsa loggen för kub clustret, podden...
+Sååå, jag trixar med kube nu. Det första jag försöker göra är att släcka den ursprungliga dask clustret som kör ifall de kolliderar. Tyvärr startar kube om den när jag tagit bort den. Automagi som funkar fint. Hur släcker jag det?
+
+kubectl --namespace default scale deployment --replicas 0 dask-scheduler
+kubectl --namespace default scale deployment --replicas 0 dask-worker
+
+kubectl --namespace dask-gateway logs gateway-dask-gateway-65f5485c8b-s7bmg
+1:43
+[I 2020-02-21 12:31:10.577 DaskGateway] 200 GET /api/clusters/ (10.244.2.20) 2.85ms
+[W 2020-02-21 12:31:32.366 DaskGateway] 401 POST /api/clusters/ (10.244.2.20) 1.49ms
+[I 2020-02-21 12:31:32.835 DaskGateway] 201 POST /api/clusters/ (10.244.2.20) 235.10ms
+[I 2020-02-21 12:31:32.836 DaskGateway] Starting cluster 6a6f2d26c3b94ef1aa26c89878786fbf for user jonathan...
+[I 2020-02-21 12:31:32.874 DaskGateway] Cluster 6a6f2d26c3b94ef1aa26c89878786fbf has started, waiting for connection
+[I 2020-02-21 12:31:52.875 DaskGateway] 200 GET /api/clusters/6a6f2d26c3b94ef1aa26c89878786fbf?wait (10.244.2.20) 19948.78ms
+[W 2020-02-21 12:32:02.882 DaskGateway] Cluster 6a6f2d26c3b94ef1aa26c89878786fbf stopped unexpectedly: Container stopped with exit code 1
+[I 2020-02-21 12:32:02.882 DaskGateway] Stopping cluster 6a6f2d26c3b94ef1aa26c89878786fbf...
+[I 2020-02-21 12:32:02.885 DaskGateway] 200 GET /api/clusters/6a6f2d26c3b94ef1aa26c89878786fbf?wait (10.244.2.20) 8473.74ms
+[I 2020-02-21 12:32:02.922 DaskGateway] Stopped cluster 6a6f2d26c3b94ef1aa26c89878786fbf
+[I 2020-02-21 12:32:03.521 DaskGateway] 200 GET /api/clusters/6a6f2d26c3b94ef1aa26c89878786fbf?wait (10.244.2.20) 1.70ms
+[I 2020-02-21 12:32:03.567 DaskGateway] 204 DELETE /api/clusters/6a6f2d26c3b94ef1aa26c89878786fbf (10.244.2.20) 1.18ms
+1:44
+Container stopped with exit code 1 efter 20 sec
+1:45
+Det har kommit efter 18-20 sec många gånger. Kan det finnas en timeout någonstans? Någon annan har nämnt detta när de kört på klena noder och våra är inte jättestarka.
+
+kubectl --namespace dask-gateway get deployment
+
+    
+
