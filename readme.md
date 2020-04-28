@@ -70,3 +70,16 @@ I suspect that it need to be configure in the values.yaml file with the proper e
 When it has an external ip, on the previous version 0.6.1, I had problem launching new workers / gateways? on the kubernetes cluster, but it worked great locally. Maybe the problem is gone now with version 0.7.1? or still needs to be solved.
 
 
+Python setup code:
+from dask_gateway import Gateway                                                                                                                                                                                                      
+gateway = Gateway(address='172.30.102.126') # ip from  kubectl --namespace dask-gateway get services EXTERNAL-IP
+gateway.list_clusters()                                                                                                                                                                                                               
+[]
+
+gateway.new_cluster()                                                                                                                                                                                                                 
+GatewayCluster<dask-gateway.952d83a481f6491a8d8e69cff2322413, status=running>
+
+gateway.list_clusters()                                                                                                                                                                                                               
+[ClusterReport<name=dask-gateway.952d83a481f6491a8d8e69cff2322413, status=RUNNING>]
+
+                                                                                                                                                                                                                         
